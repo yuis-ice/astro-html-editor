@@ -1,0 +1,752 @@
+---
+import { sanitizeSlug, readSlug } from '../../lib/store';
+
+const rawSlug = Astro.params.slug ?? '';
+if (!rawSlug) return Astro.redirect('/');
+
+const currentSlug = sanitizeSlug(rawSlug);
+if (!currentSlug) return Astro.redirect('/');
+
+let initialCode: string;
+try {
+  initialCode = await readSlug(currentSlug);
+} catch {
+  return Astro.redirect('/');
+}
+
+const fileName = currentSlug.split('/').pop() + '.html';
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{fileName} — HTML Editor</title>
+  <style>
+    :root {
+      --bg:        #16161e;
+      --bg-panel:  #1a1b26;
+      --bg-header: #1e1f2e;
+      --bg-label:  #1c1d2e;
+      --bg-gutter: #161722;
+      --border:    #2a2b3d;
+      --text:      #c0caf5;
+      --text-dim:  #8892b8;
+      --accent:    #7aa2f7;
+      --success:   #9ece6a;
+      --warn:      #e0af68;
+      --error:     #f7768e;
+      --btn-bg:    #252640;
+      --btn-hover: #2e304e;
+      --mono: 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
+      --ui:   system-ui, -apple-system, sans-serif;
+      --lh:   1.5rem;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--ui);
+      font-size: 14px;
+    }
+
+    /* ── Layout ─────────────────────────────────────── */
+    #app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Header ─────────────────────────────────────── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 12px;
+      height: 46px;
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #title-area {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+      flex-shrink: 1;
+    }
+
+    #back-link {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 18px;
+      line-height: 1;
+      padding: 2px 4px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    #back-link:hover { color: var(--text); }
+
+    #file-title {
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 280px;
+    }
+
+    #sync-status {
+      font-size: 11px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    #btn-group {
+      display: flex;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      height: 28px;
+      font-size: 12px;
+      font-family: var(--ui);
+      color: var(--text);
+      background: var(--btn-bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s;
+    }
+    button:hover { background: var(--btn-hover); }
+    button:active { opacity: 0.8; }
+    button:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+
+    button svg {
+      width: 12px; height: 12px;
+      stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+
+    /* ── Split ───────────────────────────────────────── */
+    #split { display: flex; flex: 1; overflow: hidden; }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    #panel-editor { border-right: 1px solid var(--border); }
+
+    .panel-label {
+      padding: 4px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      background: var(--bg-label);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    /* ── Editor ──────────────────────────────────────── */
+    #editor-wrap {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+    }
+
+    #gutter {
+      width: 48px;
+      flex-shrink: 0;
+      background: var(--bg-gutter);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      padding: 8px 8px 8px 0;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: var(--lh);
+      color: var(--text-dim);
+      text-align: right;
+      user-select: none;
+      white-space: pre;
+    }
+
+    #editor {
+      flex: 1;
+      resize: none;
+      border: none;
+      outline: none;
+      background: var(--bg-panel);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: var(--lh);
+      padding: 8px 12px;
+      overflow: auto;
+      white-space: pre;
+      tab-size: 2;
+    }
+
+    /* ── Preview ─────────────────────────────────────── */
+    #preview-wrap { flex: 1; overflow: hidden; }
+
+    #preview {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #fff;
+      display: block;
+    }
+
+    /* ── Dialogs ─────────────────────────────────────── */
+    dialog {
+      background: var(--bg-header);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 22px;
+      min-width: 300px;
+      max-width: 460px;
+      width: 100%;
+    }
+
+    dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+
+    .dialog-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    .dialog-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 14px;
+      justify-content: flex-end;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 6px 10px;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: var(--mono);
+      outline: none;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    input[type="text"]::placeholder { color: var(--text-dim); }
+
+    #file-list {
+      list-style: none;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--bg);
+    }
+
+    #file-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      text-decoration: none;
+    }
+    #file-list li:last-child { border-bottom: none; }
+    #file-list li:hover { background: var(--btn-hover); color: var(--accent); }
+    #file-list .fl-size { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+    #file-list li:hover .fl-size { color: inherit; opacity: 0.7; }
+    #file-list .fl-month {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 6px 12px 4px;
+      border-bottom: 1px solid var(--border);
+      cursor: default;
+      background: var(--bg-gutter);
+    }
+    #file-list .fl-month:hover { background: var(--bg-gutter); color: var(--text-dim); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #16161e;
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+    .btn-primary:hover { opacity: 0.88; background: var(--accent); }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <header id="header">
+    <div id="title-area">
+      <a id="back-link" href="/" title="All files">←</a>
+      <span id="file-title">{fileName}</span>
+      <span id="sync-status"></span>
+    </div>
+    <div id="btn-group">
+      <button id="btn-new">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>
+        New
+      </button>
+      <button id="btn-save-as">
+        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save As
+      </button>
+      <button id="btn-rename">
+        <svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+        Rename
+      </button>
+      <button id="btn-clone">
+        <svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+        Clone
+      </button>
+      <button id="btn-load">
+        <svg viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+        Load
+      </button>
+      <button id="btn-copy">
+        <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+        Copy
+      </button>
+      <button id="btn-download">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+        Download
+      </button>
+      <button id="btn-reset">
+        <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Reset
+      </button>
+      <button id="btn-open-window">
+        <svg viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+        Open
+      </button>
+    </div>
+  </header>
+
+  <div id="split">
+    <div class="panel" id="panel-editor">
+      <div class="panel-label">HTML Code</div>
+      <div id="editor-wrap">
+        <div id="gutter"></div>
+        <textarea
+          id="editor"
+          data-slug={currentSlug}
+          spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+        >{initialCode}</textarea>
+      </div>
+    </div>
+    <div class="panel" id="panel-preview">
+      <div class="panel-label">Live Preview</div>
+      <div id="preview-wrap">
+        <iframe id="preview" title="HTML Preview" sandbox="allow-scripts allow-same-origin"></iframe>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Save As dialog -->
+<dialog id="dialog-save-as">
+  <div class="dialog-title">Save As</div>
+  <input type="text" id="save-as-input" placeholder="filename" />
+  <div class="dialog-row">
+    <button id="save-as-cancel">Cancel</button>
+    <button id="save-as-confirm" class="btn-primary">Save</button>
+  </div>
+</dialog>
+
+<!-- Rename dialog -->
+<dialog id="dialog-rename">
+  <div class="dialog-title">Rename</div>
+  <input type="text" id="rename-input" placeholder="new-name" />
+  <div class="dialog-row">
+    <button id="rename-cancel">Cancel</button>
+    <button id="rename-confirm" class="btn-primary">Rename</button>
+  </div>
+</dialog>
+
+<!-- Load dialog -->
+<dialog id="dialog-load">
+  <div class="dialog-title">Open File</div>
+  <ul id="file-list"></ul>
+  <div class="dialog-row">
+    <button id="load-cancel">Cancel</button>
+  </div>
+</dialog>
+
+<script is:inline>
+(function () {
+  'use strict';
+
+  const DEFAULT_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Page</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 20px;
+      line-height: 1.6;
+      color: #333;
+    }
+    h1 { border-bottom: 2px solid #007acc; padding-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h1>My Page</h1>
+  <p>Start editing here.</p>
+</body>
+</html>`;
+
+  // ── State ────────────────────────────────────────────
+  const editor     = document.getElementById('editor');
+  const gutter     = document.getElementById('gutter');
+  const preview    = document.getElementById('preview');
+  const fileTitle  = document.getElementById('file-title');
+  const syncStatus = document.getElementById('sync-status');
+
+  let currentSlug  = editor.dataset.slug;
+  let syncTimeout  = null;
+
+  // ── Init: render existing content ────────────────────
+  updateGutter();
+  updatePreview(editor.value);
+
+  // ── Gutter ───────────────────────────────────────────
+  function updateGutter() {
+    const count = editor.value.split('\n').length;
+    let s = '';
+    for (let i = 1; i <= count; i++) s += i + '\n';
+    gutter.textContent = s;
+    gutter.scrollTop = editor.scrollTop;
+  }
+
+  editor.addEventListener('scroll', () => { gutter.scrollTop = editor.scrollTop; });
+
+  // ── Preview ──────────────────────────────────────────
+  function updatePreview(html) { preview.srcdoc = html; }
+
+  // ── Status ───────────────────────────────────────────
+  function setStatus(msg, color) {
+    syncStatus.textContent = msg;
+    syncStatus.style.color = color || 'var(--text-dim)';
+  }
+
+  function flashStatus(msg, color, delay = 2000) {
+    setStatus(msg, color);
+    setTimeout(() => { if (syncStatus.textContent === msg) setStatus(''); }, delay);
+  }
+
+  // ── Server sync ──────────────────────────────────────
+  async function syncToServer(code, slug) {
+    if (!slug) return;
+    setStatus('saving…', 'var(--warn)');
+    try {
+      const res  = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, slug }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'sync failed');
+      if (data.slug && data.slug !== currentSlug) {
+        currentSlug = data.slug;
+        updateTitle();
+      }
+      flashStatus('saved', 'var(--success)');
+    } catch (e) {
+      setStatus('error: ' + e.message, 'var(--error)');
+    }
+  }
+
+  function scheduleSync(code) {
+    clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => syncToServer(code, currentSlug), 800);
+  }
+
+  async function flushSync() {
+    if (syncTimeout) {
+      clearTimeout(syncTimeout);
+      syncTimeout = null;
+      await syncToServer(editor.value, currentSlug);
+    }
+  }
+
+  // ── Editor events ─────────────────────────────────────
+  editor.addEventListener('input', (e) => {
+    updateGutter();
+    updatePreview(e.target.value);
+    scheduleSync(e.target.value);
+  });
+
+  editor.addEventListener('paste', () => {
+    clearTimeout(syncTimeout);
+    requestAnimationFrame(() => {
+      updateGutter();
+      updatePreview(editor.value);
+      syncToServer(editor.value, currentSlug);
+    });
+  });
+
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = editor.selectionStart, end = editor.selectionEnd;
+      editor.value = editor.value.slice(0, s) + '  ' + editor.value.slice(end);
+      editor.selectionStart = editor.selectionEnd = s + 2;
+      updateGutter();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      clearTimeout(syncTimeout);
+      syncToServer(editor.value, currentSlug);
+    }
+  });
+
+  // ── Title ─────────────────────────────────────────────
+  function updateTitle() {
+    const name = currentSlug.split('/').pop() + '.html';
+    fileTitle.textContent = name;
+    document.title = name + ' — HTML Editor';
+  }
+
+  // ── New ───────────────────────────────────────────────
+  document.getElementById('btn-new').addEventListener('click', async () => {
+    await flushSync();
+    setStatus('creating…', 'var(--warn)');
+    try {
+      const res  = await fetch('/api/new', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'failed');
+      window.location.href = '/file/' + data.slug;
+    } catch (e) {
+      setStatus('error: ' + e.message, 'var(--error)');
+    }
+  });
+
+  // ── Save As ───────────────────────────────────────────
+  const dlgSaveAs     = document.getElementById('dialog-save-as');
+  const saveAsInput   = document.getElementById('save-as-input');
+
+  document.getElementById('btn-save-as').addEventListener('click', () => {
+    saveAsInput.value = currentSlug.split('/').pop();
+    dlgSaveAs.showModal();
+    saveAsInput.select();
+  });
+
+  document.getElementById('save-as-cancel').addEventListener('click', () => dlgSaveAs.close());
+
+  async function doSaveAs() {
+    const name = saveAsInput.value.trim();
+    if (!name) return;
+    dlgSaveAs.close();
+    setStatus('saving…', 'var(--warn)');
+    try {
+      const res  = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: editor.value, slug: name }), // server adds month
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'failed');
+      window.location.href = '/file/' + data.slug;
+    } catch (e) {
+      setStatus('error: ' + e.message, 'var(--error)');
+    }
+  }
+
+  document.getElementById('save-as-confirm').addEventListener('click', doSaveAs);
+  saveAsInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSaveAs();
+    if (e.key === 'Escape') dlgSaveAs.close();
+  });
+
+  // ── Rename ────────────────────────────────────────────
+  const dlgRename   = document.getElementById('dialog-rename');
+  const renameInput = document.getElementById('rename-input');
+
+  document.getElementById('btn-rename').addEventListener('click', () => {
+    renameInput.value = currentSlug.split('/').pop();
+    dlgRename.showModal();
+    renameInput.select();
+  });
+
+  document.getElementById('rename-cancel').addEventListener('click', () => dlgRename.close());
+
+  async function doRename() {
+    const name = renameInput.value.trim();
+    if (!name) return;
+    dlgRename.close();
+    await flushSync();
+    setStatus('renaming…', 'var(--warn)');
+    try {
+      const res  = await fetch('/api/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldSlug: currentSlug, newName: name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'failed');
+      window.location.href = '/file/' + data.slug;
+    } catch (e) {
+      setStatus('error: ' + e.message, 'var(--error)');
+    }
+  }
+
+  document.getElementById('rename-confirm').addEventListener('click', doRename);
+  renameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doRename();
+    if (e.key === 'Escape') dlgRename.close();
+  });
+
+  // ── Clone ─────────────────────────────────────────────
+  document.getElementById('btn-clone').addEventListener('click', async () => {
+    await flushSync();
+    setStatus('cloning…', 'var(--warn)');
+    try {
+      const res  = await fetch('/api/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: currentSlug }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'failed');
+      window.location.href = '/file/' + data.slug;
+    } catch (e) {
+      setStatus('error: ' + e.message, 'var(--error)');
+    }
+  });
+
+  // ── Load ──────────────────────────────────────────────
+  const dlgLoad  = document.getElementById('dialog-load');
+  const fileList = document.getElementById('file-list');
+
+  function formatSize(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+    return (b / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  document.getElementById('btn-load').addEventListener('click', async () => {
+    fileList.innerHTML = '<li style="padding:10px 12px;color:var(--text-dim)">Loading…</li>';
+    dlgLoad.showModal();
+    try {
+      const res  = await fetch('/api/files');
+      const data = await res.json();
+      fileList.innerHTML = '';
+      if (!data.files || data.files.length === 0) {
+        fileList.innerHTML = '<li style="padding:10px 12px;color:var(--text-dim)">No saved files</li>';
+        return;
+      }
+
+      let lastMonth = '';
+      for (const f of data.files) {
+        if (f.month !== lastMonth) {
+          const hdr = document.createElement('li');
+          hdr.className = 'fl-month';
+          hdr.textContent = f.month;
+          fileList.appendChild(hdr);
+          lastMonth = f.month;
+        }
+        const li    = document.createElement('li');
+        const name  = document.createElement('span');
+        name.textContent = f.name + '.html';
+        const size  = document.createElement('span');
+        size.className = 'fl-size';
+        size.textContent = formatSize(f.size);
+        li.appendChild(name);
+        li.appendChild(size);
+        li.addEventListener('click', () => {
+          dlgLoad.close();
+          window.location.href = '/file/' + f.slug;
+        });
+        fileList.appendChild(li);
+      }
+    } catch {
+      fileList.innerHTML = '<li style="padding:10px 12px;color:var(--error)">Failed to load list</li>';
+    }
+  });
+
+  document.getElementById('load-cancel').addEventListener('click', () => dlgLoad.close());
+
+  // ── Copy ──────────────────────────────────────────────
+  document.getElementById('btn-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(editor.value);
+      flashStatus('copied!', 'var(--success)', 1500);
+    } catch {
+      setStatus('copy failed', 'var(--error)');
+    }
+  });
+
+  // ── Download ──────────────────────────────────────────
+  document.getElementById('btn-download').addEventListener('click', () => {
+    const blob = new Blob([editor.value], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), {
+      href: url,
+      download: currentSlug.split('/').pop() + '.html',
+    });
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // ── Reset ─────────────────────────────────────────────
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    editor.value = DEFAULT_HTML;
+    updateGutter();
+    updatePreview(DEFAULT_HTML);
+    scheduleSync(DEFAULT_HTML);
+  });
+
+  // ── Open in new window ────────────────────────────────
+  document.getElementById('btn-open-window').addEventListener('click', () => {
+    const blob = new Blob([editor.value], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    if (!window.open(url, '_blank')) setStatus('popup blocked', 'var(--warn)');
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  });
+
+})();
+</script>
+
+</body>
+</html>

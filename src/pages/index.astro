@@ -1,0 +1,322 @@
+---
+import { listFiles } from '../lib/store';
+
+const allFiles = await listFiles();
+
+const byMonth = new Map<string, typeof allFiles>();
+for (const f of allFiles) {
+  if (!byMonth.has(f.month)) byMonth.set(f.month, []);
+  byMonth.get(f.month)!.push(f);
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HTML Editor</title>
+  <style>
+    :root {
+      --bg:        #16161e;
+      --bg-card:   #1e1f2e;
+      --bg-row:    #1a1b28;
+      --border:    #2a2b3d;
+      --border-hi: #3a3b52;
+      --text:      #c0caf5;
+      --text-dim:  #8892b8;
+      --accent:    #7aa2f7;
+      --warn:      #e0af68;
+      --error:     #f7768e;
+      --btn-bg:    #252640;
+      --btn-hover: #2e304e;
+      --ui:   system-ui, -apple-system, sans-serif;
+      --mono: 'Cascadia Code', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--ui);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    #header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    /* inner wrapper aligns with #main */
+    .header-inner {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .header-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #status {
+      font-size: 12px;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────── */
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 13px;
+      height: 32px;
+      font-size: 13px;
+      font-family: var(--ui);
+      color: var(--text);
+      background: var(--btn-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-weight: 500;
+      transition: background 0.1s;
+    }
+    button:hover { background: var(--btn-hover); border-color: var(--border-hi); }
+    button:active { opacity: 0.8; }
+
+    button svg {
+      width: 13px; height: 13px;
+      stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+
+    /* primary = New button */
+    .btn-primary {
+      background: var(--accent);
+      color: #16161e;
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+    .btn-primary:hover { background: #8fb4ff; border-color: #8fb4ff; }
+    .btn-primary svg { stroke: #16161e; }
+
+    /* ── Main content ────────────────────────────────────── */
+    #main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+    }
+
+    /* ── Month group ─────────────────────────────────────── */
+    .month-group { margin-bottom: 20px; }
+
+    .month-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 4px;
+      margin-bottom: 6px;
+    }
+
+    .month-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    .month-rule {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .month-count {
+      font-size: 11px;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    /* ── File list card ──────────────────────────────────── */
+    .file-list {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* ── File row ────────────────────────────────────────── */
+    .file-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 11px 16px;
+      text-decoration: none;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .file-row:last-child { border-bottom: none; }
+
+    .file-row:hover {
+      background: var(--btn-hover);
+      border-bottom-color: var(--border-hi);
+    }
+    .file-row:hover .file-name { color: var(--accent); }
+    /* keep the row above a hover from flickering its bottom border */
+    .file-row:hover + .file-row { border-top-color: var(--border-hi); }
+
+    .file-name {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 400;
+      transition: color 0.1s;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-meta {
+      font-size: 12px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    /* ── Empty state ─────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 0;
+      gap: 20px;
+    }
+
+    .empty-icon {
+      width: 48px;
+      height: 48px;
+      stroke: var(--border-hi);
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .empty-text {
+      font-size: 15px;
+      color: var(--text-dim);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <header id="header">
+    <div class="header-inner">
+      <span class="header-title">HTML Editor</span>
+      <div class="header-right">
+        <span id="status"></span>
+        <button id="btn-new" class="btn-primary">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>
+          New
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    {allFiles.length === 0 ? (
+      <div class="empty-state">
+        <svg class="empty-icon" viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="11" x2="12" y2="17"/>
+          <line x1="9" y1="14" x2="15" y2="14"/>
+        </svg>
+        <p class="empty-text">No files yet.</p>
+        <button id="btn-new-empty" class="btn-primary">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>
+          Create your first file
+        </button>
+      </div>
+    ) : (
+      Array.from(byMonth.entries()).map(([month, files]) => (
+        <div class="month-group">
+          <div class="month-header">
+            <span class="month-label">{month}</span>
+            <div class="month-rule"></div>
+            <span class="month-count">{files.length} {files.length === 1 ? 'file' : 'files'}</span>
+          </div>
+          <div class="file-list">
+            {files.map(f => (
+              <a class="file-row" href={`/file/${f.slug}`}>
+                <span class="file-name">{f.name}.html</span>
+                <span class="file-meta">{formatSize(f.size)}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))
+    )}
+  </main>
+
+  <script is:inline>
+  async function createNew() {
+    const status = document.getElementById('status');
+    status.textContent = 'Creating…';
+    status.style.color = 'var(--warn)';
+    try {
+      const res  = await fetch('/api/new', { method: 'POST' });
+      const data = await res.json();
+      if (data.slug) {
+        window.location.href = '/file/' + data.slug;
+      } else {
+        status.textContent = 'Error: ' + (data.error || 'unknown');
+        status.style.color = 'var(--error)';
+      }
+    } catch (e) {
+      status.textContent = 'Error: ' + e.message;
+      status.style.color = 'var(--error)';
+    }
+  }
+
+  document.getElementById('btn-new').addEventListener('click', createNew);
+  const btnEmpty = document.getElementById('btn-new-empty');
+  if (btnEmpty) btnEmpty.addEventListener('click', createNew);
+  </script>
+</body>
+</html>
