@@ -1,6 +1,6 @@
 {
   "name": "astro-html-editor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Self-hosted HTML editor with live preview. Paste HTML, see results instantly. Files persist to server filesystem via Astro SSR — no localStorage, no framework islands.",
   "type": "module",
   "bin": {
