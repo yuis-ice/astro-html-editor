@@ -12,6 +12,9 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/yuis-ice/astro-html-editor
+    - theme: alt
+      text: npm
+      link: https://www.npmjs.com/package/astro-html-editor
 
 features:
   - title: Server-side persistence

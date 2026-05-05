@@ -1,16 +1,54 @@
 {
   "name": "astro-html-editor",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Self-hosted HTML editor with live preview. Paste HTML, see results instantly. Files persist to server filesystem via Astro SSR — no localStorage, no framework islands.",
   "type": "module",
+  "bin": {
+    "astro-html-editor": "bin/astro-html-editor.js"
+  },
+  "files": [
+    "dist/",
+    "bin/"
+  ],
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "node ./dist/server/entry.mjs",
     "start": "node ./dist/server/entry.mjs",
+    "prepublishOnly": "npm run build",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
+  },
+  "keywords": [
+    "html-editor",
+    "html-preview",
+    "live-preview",
+    "self-hosted",
+    "astro",
+    "local-first",
+    "web-editor",
+    "code-editor",
+    "nodejs",
+    "ssr",
+    "vanilla-js",
+    "developer-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yuis-ice/astro-html-editor.git"
+  },
+  "homepage": "https://yuis-ice.github.io/astro-html-editor/",
+  "bugs": {
+    "url": "https://github.com/yuis-ice/astro-html-editor/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "yuis-ice",
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@astrojs/node": "^9.1.0",

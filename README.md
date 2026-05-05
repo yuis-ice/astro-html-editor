@@ -1,6 +1,6 @@
 # astro-html-editor
 
-[![Docs](https://img.shields.io/badge/docs-yuis--ice.github.io%2Fastro--html--editor-blue)](https://yuis-ice.github.io/astro-html-editor/) [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/astro-html-editor)](https://www.npmjs.com/package/astro-html-editor) [![npm downloads](https://img.shields.io/npm/dm/astro-html-editor)](https://www.npmjs.com/package/astro-html-editor) [![Docs](https://img.shields.io/badge/docs-yuis--ice.github.io%2Fastro--html--editor-blue)](https://yuis-ice.github.io/astro-html-editor/) [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
 **[Full documentation →](https://yuis-ice.github.io/astro-html-editor/)**
 
@@ -9,6 +9,35 @@ A self-hosted HTML editor with live preview. Paste or write HTML on the left, se
 Built with Astro SSR and plain JavaScript. No React, Vue, or Svelte.
 
 ![screenshot](screenshot.png)
+
+## Install
+
+```bash
+# Run without installing
+npx astro-html-editor
+
+# Or install globally
+npm install -g astro-html-editor
+astro-html-editor
+```
+
+Opens at `http://localhost:4321`. Files are saved to `./data/` in the current directory.
+
+## From source
+
+```bash
+git clone https://github.com/yuis-ice/astro-html-editor
+cd astro-html-editor
+npm install
+npm run build
+npm start
+```
+
+For development (hot reload):
+
+```bash
+npm run dev
+```
 
 ## Features
 
@@ -22,34 +51,17 @@ Built with Astro SSR and plain JavaScript. No React, Vue, or Svelte.
 - Line-number gutter synced to scroll position
 - Dark theme (Tokyo Night palette)
 
-## Requirements
-
-- Node.js 18+
-- npm
-
-## Setup
-
-```bash
-git clone https://github.com/yuis-ice/astro-html-editor
-cd astro-html-editor
-npm install
-npm run build
-npm start
-```
-
-Server listens on `http://localhost:4321` by default.
-
-For development (with hot reload):
-
-```bash
-npm run dev
-```
-
 ## Self-Hosting
 
 Files are written to `./data/YYYY-MM/` relative to the working directory. Mount a persistent volume at `./data/` if running in Docker.
 
 The `/api/*` endpoints have no authentication. Do not expose the server to the public internet without adding your own access control (reverse proxy, firewall rule, etc.).
+
+Set `PORT` to change the port:
+
+```bash
+PORT=8080 astro-html-editor
+```
 
 ## API Endpoints
 
