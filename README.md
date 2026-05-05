@@ -1,5 +1,9 @@
 # astro-html-editor
 
+[![Docs](https://img.shields.io/badge/docs-yuis--ice.github.io%2Fastro--html--editor-blue)](https://yuis-ice.github.io/astro-html-editor/) [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+
+**[Full documentation →](https://yuis-ice.github.io/astro-html-editor/)**
+
 A self-hosted HTML editor with live preview. Paste or write HTML on the left, see the result on the right. Files are saved to the server filesystem immediately — no localStorage, no manual download step.
 
 Built with Astro SSR and plain JavaScript. No React, Vue, or Svelte.
