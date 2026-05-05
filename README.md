@@ -4,6 +4,8 @@ A self-hosted HTML editor with live preview. Paste or write HTML on the left, se
 
 Built with Astro SSR and plain JavaScript. No React, Vue, or Svelte.
 
+![screenshot](screenshot.png)
+
 ## Features
 
 - Split-pane editor (textarea) + live preview (iframe srcdoc)
@@ -61,4 +63,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT
+Apache 2.0
